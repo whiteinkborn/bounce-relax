@@ -285,9 +285,9 @@
 
   function startChallenge() {
     resetRun('challenge');
-    G.wave = 1;
-    loadLevel(Levels.generateChallengeLevel(1));
-    showToast('挑战：连续波次，清空自动进入下一波，没有喘息', 2600);
+    G.relaxRound = 1;
+    loadLevel(Levels.generateChamberLevel(undefined, 'challenge'));
+    showToast('挑战：窄门钢舱，把弹珠送进缺口再清空', 2600);
     if (G.audio) G.audio.click();
   }
 
@@ -303,6 +303,7 @@
   function startRelax() {
     resetRun('relax');
     loadLevel(Levels.generateRelaxLevel());
+    showToast('解压：每颗球的第一次碰撞可以穿过钢板，直接进舱', 2800);
     if (G.audio) G.audio.click();
   }
 
@@ -347,6 +348,8 @@
       speed: G.level ? G.level.speed : 380,
       power: false,
       stuck: true,
+      phase: G.mode === 'relax',
+      phaseTimer: 0,
       trail: [],
       cooldowns: {}
     };
@@ -491,7 +494,7 @@
     var bonus;
 
     if (G.mode === 'challenge') {
-      bonus = 250 + G.wave * 40;
+      bonus = 250 + G.relaxRound * 40;
       G.score += bonus;
       addFloat('全清 +' + bonus, W / 2, 260, '#ffd166');
       for (var i = 0; i < 4; i++) {
@@ -532,9 +535,9 @@
     updateHud(true);
   }
 
-  /** 解压模式：换一个腔体（弹珠由 proceedNext 决定是否保留） */
-  function relaxNextChamber() {
-    var lv = Levels.generateRelaxLevel();
+  /** 挑战/解压：换一个钢舱（弹珠由 proceedNext 决定是否保留） */
+  function nextChamber() {
+    var lv = Levels.generateChamberLevel(undefined, G.mode === 'challenge' ? 'challenge' : 'relax');
     G.level = lv;
     G.blocks = lv.blocks;
     G.items = [];
@@ -601,6 +604,7 @@
         b.trail.length = 0;
         continue;
       }
+      if (b.phaseTimer > 0) b.phaseTimer = Math.max(0, b.phaseTimer - dt);
 
       if (b.trail.length === 0 || Math.abs(b.trail[b.trail.length - 1].x - b.x) + Math.abs(b.trail[b.trail.length - 1].y - b.y) > 6) {
         b.trail.push({ x: b.x, y: b.y, a: 1 });
@@ -699,6 +703,18 @@
       var hit = Physics.circleRectHit(b, blk);
       if (!hit) continue;
 
+      /* 解压模式：每颗球第一次碰到钢板直接穿过去（不反弹、不消耗冷却） */
+      if (!blk.breakable && G.mode === 'relax' && (b.phase || b.phaseTimer > 0)) {
+        if (b.phase) {
+          b.phase = false;
+          b.phaseTimer = 0.2;
+          spawnSparks(b.x, b.y, '#7fe9ff', 10, 180);
+          addFloat('穿透钢板', b.x, b.y - 18, '#7fe9ff');
+          if (G.audio) G.audio.launch();
+        }
+        continue;
+      }
+
       var key = blk.id;
       var last = b.cooldowns[key];
       if (last != null && G.now - last < 0.08) {
@@ -717,6 +733,17 @@
     blk.wobble = 1;
 
     if (!blk.breakable) {
+      /* 解压模式：每颗球第一次碰到钢板直接穿过去 */
+      if (G.mode === 'relax' && (ball.phase || ball.phaseTimer > 0)) {
+        if (ball.phase) {
+          ball.phase = false;
+          ball.phaseTimer = 0.18;
+          spawnSparks(ball.x, ball.y, '#7fe9ff', 10, 180);
+          addFloat('穿透钢板', ball.x, ball.y - 18, '#7fe9ff');
+          if (G.audio) G.audio.launch();
+        }
+        return;
+      }
       if (G.audio) G.audio.brickHit('solid');
       spawnSparks(ball.x, ball.y, '#c3d2e8', 4, 150);
       G.shake = Math.max(G.shake, 0.10);
@@ -893,6 +920,8 @@
       speed: speed,
       power: !!power,
       stuck: false,
+      phase: G.mode === 'relax',
+      phaseTimer: 0,
       trail: [],
       cooldowns: {}
     };
@@ -950,6 +979,8 @@
       speed: b.speed,
       power: !!b.power,
       stuck: !!b.stuck,
+      phase: b.phase,
+      phaseTimer: b.phaseTimer || 0,
       trail: [],
       cooldowns: {}
     };
@@ -965,6 +996,8 @@
     G.balls = saved.map(function (b) {
       var nb = cloneBall(b);
       nb.speed = speed;
+      nb.phase = G.mode === 'relax';
+      nb.phaseTimer = 0;
       nb.x = clamp(nb.x, nb.r, W - nb.r);
       nb.y = clamp(nb.y, nb.r, G.paddle.y - 20);
       return nb;
@@ -972,7 +1005,7 @@
   }
 
   function showKeepPrompt() {
-    var dest = G.mode === 'campaign' ? '下一关' : (G.mode === 'challenge' ? '下一波' : '下一个舱');
+    var dest = G.mode === 'campaign' ? '下一关' : '下一个舱';
     G.state = 'keepask';
     G.clearTimer = 0;
     el['keep-title'].textContent = G.mode === 'campaign' ? '通关！' : '清场！';
@@ -1001,11 +1034,8 @@
       if (G.levelIndex >= Levels.campaignCount()) { showMenu(); return; }
       G.levelIndex++;
       loadLevel(Levels.campaignLevel(G.levelIndex));
-    } else if (mode === 'challenge') {
-      G.wave++;
-      loadLevel(Levels.generateChallengeLevel(G.wave));
-    } else if (mode === 'relax') {
-      relaxNextChamber();
+    } else if (mode === 'challenge' || mode === 'relax') {
+      nextChamber();
     }
 
     if (saved && saved.length) {
@@ -1071,8 +1101,8 @@
       thirdLabel = '已通关';
       thirdValue = Math.max(0, save.campaignUnlocked - 1);
     } else if (G.mode === 'challenge') {
-      reached = '第 ' + G.wave + ' 波';
-      sub = (newRecord ? '新纪录！' : '') + '连续清掉 ' + G.wave + ' 波，砸碎 ' + G.destroyedTotal + ' 块墙';
+      reached = '第 ' + (G.relaxRound || 1) + ' 关';
+      sub = (newRecord ? '新纪录！' : '') + '钢舱挑战清掉 ' + (G.relaxRound || 1) + ' 个舱，砸碎 ' + G.destroyedTotal + ' 块墙';
       thirdLabel = '最高分';
       thirdValue = save.challengeBest;
     } else if (G.mode === 'endless') {
@@ -1106,8 +1136,8 @@
     } else if (G.mode === 'challenge') {
       G.score = 0;
       G.lives = Rules.MODE_CONFIG.challenge.lives;
-      G.wave = 1;
-      loadLevel(Levels.generateChallengeLevel(1));
+      G.relaxRound = 1;
+      loadLevel(Levels.generateChamberLevel(undefined, 'challenge'));
     } else if (G.mode === 'endless') {
       G.score = 0;
       G.lives = Rules.MODE_CONFIG.endless.lives;
@@ -1117,6 +1147,7 @@
     } else {
       G.score = 0;
       G.lives = Rules.MODE_CONFIG.relax.lives;
+      G.relaxRound = 1;
       loadLevel(Levels.generateRelaxLevel());
     }
     if (G.audio) G.audio.setPaused(false);
@@ -1180,7 +1211,7 @@
     if (G.mode === 'campaign') {
       levelText = '第 ' + G.levelIndex + ' 关 · ' + (G.level ? G.level.name.split('· ')[1] || '' : '');
     } else if (G.mode === 'challenge') {
-      levelText = '第 ' + G.wave + ' 波 · 连续挑战';
+      levelText = '第 ' + (G.relaxRound || 1) + ' 关 · 钢舱挑战';
     } else if (G.mode === 'endless') {
       var countdown = G.nextWaveIn > 0 ? ' · 下一波 ' + Math.ceil(G.nextWaveIn) + 's' : ' · 全清！';
       levelText = '第 ' + G.wave + ' 波' + countdown;
@@ -1552,6 +1583,19 @@
         c.strokeStyle = 'rgba(255,209,102,0.7)';
         c.lineWidth = 1.5;
         c.stroke();
+      }
+
+      /* 解压模式：还有一次穿墙机会时，外圈显示虚线光环 */
+      if (b.phase) {
+        c.save();
+        c.setLineDash([3, 4]);
+        c.beginPath();
+        c.arc(b.x, b.y, b.r + 5, 0, Math.PI * 2);
+        c.strokeStyle = 'rgba(127,233,255,0.9)';
+        c.lineWidth = 1.5;
+        c.stroke();
+        c.setLineDash([]);
+        c.restore();
       }
     }
   }
