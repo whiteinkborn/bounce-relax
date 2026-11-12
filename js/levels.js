@@ -554,7 +554,7 @@
    * 舱内（以及墙内墙里）塞满可破坏方块——玩家必须把弹珠送进缺口，进去后持续弹射清场。
    * 支持 5 种模板：大殿堂 / 回字套娃 / 双子堡 / 多层搁板 / 柱厅。
    */
-  function buildChamberOnce(rng) {
+  function buildChamberOnce(rng, mode) {
     rng = rng || Math.random;
     var COLS = GRID.COLS;
     var ROWS = GRID.ROWS;
@@ -607,7 +607,7 @@
     var left = 1;
     var right = COLS - 2;
 
-    var styles = ['hall', 'nest', 'twin', 'shelves', 'pillars'];
+    var styles = mode === 'relax' ? ['hall', 'twin'] : ['hall', 'nest', 'twin', 'shelves', 'pillars'];
     var style = styles[Math.floor(rng() * styles.length) % styles.length];
     var gapMode = ['bottom', 'top', 'top', 'both', 'both'][Math.floor(rng() * 5) % 5];
 
@@ -671,12 +671,12 @@
   }
 
   /** 生成多个候选，优先选可破坏方块 >= 65 的，保证爽快的清场量 */
-  function generateRelaxChamber(rng) {
+  function generateRelaxChamber(rng, mode) {
     rng = rng || Math.random;
     var best = null;
     var good = [];
     for (var i = 0; i < 6; i++) {
-      var c = buildChamberOnce(rng);
+      var c = buildChamberOnce(rng, mode);
       var count = 0;
       for (var r = 0; r < c.pattern.length; r++) {
         for (var q = 0; q < c.pattern[r].length; q++) {
@@ -781,7 +781,7 @@
    */
   function generateChamberLevel(rng, mode) {
     var m = mode === 'challenge' ? 'challenge' : 'relax';
-    var p = generateRelaxChamber(rng);
+    var p = generateRelaxChamber(rng, m);
     var cfg = R.MODE_CONFIG[m];
     var built = buildLevel({
       name: p.name,
