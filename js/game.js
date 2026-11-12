@@ -303,7 +303,7 @@
   function startRelax() {
     resetRun('relax');
     loadLevel(Levels.generateRelaxLevel());
-    showToast('解压：每颗球的第一次碰撞可以穿过钢板，直接进舱', 2800);
+    showToast('解压：朝舱内飞时可以穿过钢板，进舱后就关在里面', 2800);
     if (G.audio) G.audio.click();
   }
 
@@ -311,6 +311,7 @@
     G.state = 'playing';
     G.level = level;
     G.blocks = level.blocks;
+    G.chamberBounds = makeChamberBounds(G.blocks);
     G.balls = [];
     G.items = [];
     G.particles = [];
@@ -540,6 +541,7 @@
     var lv = Levels.generateChamberLevel(undefined, G.mode === 'challenge' ? 'challenge' : 'relax');
     G.level = lv;
     G.blocks = lv.blocks;
+    G.chamberBounds = makeChamberBounds(G.blocks);
     G.items = [];
     G.particles = [];
     G.floats = [];
@@ -594,6 +596,36 @@
     p.squash = Math.max(0, p.squash - dt * 4.5);
   }
 
+  function makeChamberBounds(blocks) {
+    var x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      if (!b.alive) continue;
+      x1 = Math.min(x1, b.x);
+      y1 = Math.min(y1, b.y);
+      x2 = Math.max(x2, b.x + b.w);
+      y2 = Math.max(y2, b.y + b.h);
+    }
+    return x2 > x1 ? { x1: x1, y1: y1, x2: x2, y2: y2 } : null;
+  }
+
+  function ballInsideChamber(ball) {
+    var cb = G.chamberBounds;
+    if (!cb) return false;
+    /* 缩进一个墙厚再多一点，确保球心真正越过钢板后才停止穿透 */
+    return ball.x > cb.x1 + 60 && ball.x < cb.x2 - 60 && ball.y > cb.y1 + 28 && ball.y < cb.y2 - 28;
+  }
+
+  /** 解压模式：球在舱外、且正朝舱中心飞时，可以穿过钢板进舱；进舱后不再穿出 */
+  function canPhaseThrough(ball) {
+    if (G.mode !== 'relax' || !G.chamberBounds) return false;
+    if (ballInsideChamber(ball)) return false;
+    var cb = G.chamberBounds;
+    var cx = (cb.x1 + cb.x2) / 2;
+    var cy = (cb.y1 + cb.y2) / 2;
+    return (ball.dir.x * (cx - ball.x) + ball.dir.y * (cy - ball.y)) > 0;
+  }
+
   function updateBalls(dt, collide) {
     var slow = G.slowTime > 0 ? 0.78 : 1;
     for (var i = G.balls.length - 1; i >= 0; i--) {
@@ -604,7 +636,6 @@
         b.trail.length = 0;
         continue;
       }
-      if (b.phaseTimer > 0) b.phaseTimer = Math.max(0, b.phaseTimer - dt);
 
       if (b.trail.length === 0 || Math.abs(b.trail[b.trail.length - 1].x - b.x) + Math.abs(b.trail[b.trail.length - 1].y - b.y) > 6) {
         b.trail.push({ x: b.x, y: b.y, a: 1 });
@@ -703,13 +734,12 @@
       var hit = Physics.circleRectHit(b, blk);
       if (!hit) continue;
 
-      /* 解压模式：每颗球第一次碰到钢板直接穿过去（不反弹、不消耗冷却） */
-      if (!blk.breakable && G.mode === 'relax' && (b.phase || b.phaseTimer > 0)) {
-        if (b.phase) {
-          b.phase = false;
-          b.phaseTimer = 0.2;
+      /* 解压模式：从舱外朝舱内飞时，钢板直接穿过；进舱后正常反弹 */
+      if (!blk.breakable && canPhaseThrough(b)) {
+        if (G.now - (b.lastPhaseFx || 0) > 0.25) {
+          b.lastPhaseFx = G.now;
           spawnSparks(b.x, b.y, '#7fe9ff', 10, 180);
-          addFloat('穿透钢板', b.x, b.y - 18, '#7fe9ff');
+          addFloat('穿墙进舱', b.x, b.y - 18, '#7fe9ff');
           if (G.audio) G.audio.launch();
         }
         continue;
@@ -732,21 +762,7 @@
     blk.flash = 1;
     blk.wobble = 1;
 
-    /* 解压模式：一旦碰到舱内可破坏方块，穿墙机会就消耗掉，避免之后从里面穿出去 */
-    if (blk.breakable && G.mode === 'relax' && ball.phase) ball.phase = false;
-
     if (!blk.breakable) {
-      /* 解压模式：每颗球第一次碰到钢板直接穿过去 */
-      if (G.mode === 'relax' && (ball.phase || ball.phaseTimer > 0)) {
-        if (ball.phase) {
-          ball.phase = false;
-          ball.phaseTimer = 0.18;
-          spawnSparks(ball.x, ball.y, '#7fe9ff', 10, 180);
-          addFloat('穿透钢板', ball.x, ball.y - 18, '#7fe9ff');
-          if (G.audio) G.audio.launch();
-        }
-        return;
-      }
       if (G.audio) G.audio.brickHit('solid');
       spawnSparks(ball.x, ball.y, '#c3d2e8', 4, 150);
       G.shake = Math.max(G.shake, 0.10);
@@ -1589,7 +1605,7 @@
       }
 
       /* 解压模式：还有一次穿墙机会时，外圈显示虚线光环 */
-      if (b.phase) {
+      if (canPhaseThrough(b)) {
         c.save();
         c.setLineDash([3, 4]);
         c.beginPath();
