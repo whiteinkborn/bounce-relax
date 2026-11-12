@@ -303,7 +303,7 @@
   function startRelax() {
     resetRun('relax');
     loadLevel(Levels.generateRelaxLevel());
-    showToast('解压：朝舱内飞时可以穿过钢板，进舱后就关在里面', 2800);
+    showToast('解压：只有初始球能穿墙进舱，分裂球不能穿', 2800);
     if (G.audio) G.audio.click();
   }
 
@@ -349,8 +349,7 @@
       speed: G.level ? G.level.speed : 380,
       power: false,
       stuck: true,
-      phase: G.mode === 'relax',
-      phaseTimer: 0,
+      phasing: G.mode === 'relax',
       trail: [],
       cooldowns: {}
     };
@@ -618,7 +617,7 @@
 
   /** 解压模式：球在舱外、且正朝舱中心飞时，可以穿过钢板进舱；进舱后不再穿出 */
   function canPhaseThrough(ball) {
-    if (G.mode !== 'relax' || !G.chamberBounds) return false;
+    if (G.mode !== 'relax' || !ball.phasing || !G.chamberBounds) return false;
     if (ballInsideChamber(ball)) return false;
     var cb = G.chamberBounds;
     var cx = (cb.x1 + cb.x2) / 2;
@@ -939,8 +938,7 @@
       speed: speed,
       power: !!power,
       stuck: false,
-      phase: G.mode === 'relax',
-      phaseTimer: 0,
+      phasing: false,
       trail: [],
       cooldowns: {}
     };
@@ -998,8 +996,7 @@
       speed: b.speed,
       power: !!b.power,
       stuck: !!b.stuck,
-      phase: b.phase,
-      phaseTimer: b.phaseTimer || 0,
+      phasing: !!b.phasing,
       trail: [],
       cooldowns: {}
     };
@@ -1012,11 +1009,10 @@
   function restoreBalls(saved) {
     if (!saved || !saved.length) return;
     var speed = G.level ? G.level.speed : (saved[0].speed || 400);
-    G.balls = saved.map(function (b) {
+    G.balls = saved.map(function (b, idx) {
       var nb = cloneBall(b);
       nb.speed = speed;
-      nb.phase = G.mode === 'relax';
-      nb.phaseTimer = 0;
+      nb.phasing = G.mode === 'relax' && idx === 0;
       nb.x = clamp(nb.x, nb.r, W - nb.r);
       nb.y = clamp(nb.y, nb.r, G.paddle.y - 20);
       return nb;
