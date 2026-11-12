@@ -774,20 +774,31 @@
     level.blocks = blocks;
   }
 
-  function generateRelaxLevel(rng) {
+  /**
+   * 生成一个钢舱关卡。
+   * mode = 'challenge'：难进的钢舱挑战（3 条命、速度更快、没有穿墙）
+   * mode = 'relax'：解压钢舱（5 条命、球首次可以穿过钢板）
+   */
+  function generateChamberLevel(rng, mode) {
+    var m = mode === 'challenge' ? 'challenge' : 'relax';
     var p = generateRelaxChamber(rng);
+    var cfg = R.MODE_CONFIG[m];
     var built = buildLevel({
       name: p.name,
-      hint: '把弹珠打进底部的缺口，舱内会一直弹射',
+      hint: m === 'challenge' ? '窄门钢舱：瞄准缺口把弹珠送进去' : '每颗球第一次可以穿过钢板，直接进舱爽',
       pattern: p.pattern,
-      speed: R.MODE_CONFIG.relax.baseSpeed,
-      dropRate: R.MODE_CONFIG.relax.dropRate,
-      mode: 'relax',
+      speed: m === 'challenge' ? 390 : cfg.baseSpeed,
+      dropRate: cfg.dropRate,
+      mode: m,
       level: 1
     });
     narrowChamberGaps(built);
     built.relaxStyle = p.name;
     return built;
+  }
+
+  function generateRelaxLevel(rng) {
+    return generateChamberLevel(rng, 'relax');
   }
 
   var api = {
@@ -804,6 +815,7 @@
     generateRelaxPattern: generateRelaxPattern,
     generateRelaxChamber: generateRelaxChamber,
     generateRelaxLevel: generateRelaxLevel,
+    generateChamberLevel: generateChamberLevel,
     buildLevel: buildLevel,
     centerPattern: centerPattern
   };
