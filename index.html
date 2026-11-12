@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1026">
+<title>弹弹解压 · Bounce &amp; Relax</title>
+<link rel="stylesheet" href="css/style.css?v=20261112g">
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="game" width="960" height="640" aria-label="弹弹解压游戏画面"></canvas>
+
+    <!-- ===================== HUD ===================== -->
+    <div id="hud" class="hud" hidden>
+      <div class="hud-side hud-left">
+        <span id="hud-mode" class="chip">闯关</span>
+        <span id="hud-level" class="hud-sub">第 1 关</span>
+        <div class="hud-mini">
+          <span id="hud-blocks" class="mini-chip">剩余 0</span>
+          <span id="hud-balls" class="mini-chip">弹珠 1</span>
+        </div>
+      </div>
+
+      <div class="hud-center">
+        <div id="hud-score" class="score">0</div>
+        <div class="hud-sub">得分</div>
+      </div>
+
+      <div class="hud-side hud-right">
+        <div id="hud-lives" class="lives" aria-label="生命"></div>
+        <div class="hud-icons">
+          <button id="btn-music" class="toggle-switch" type="button" title="背景音乐 (M)" aria-pressed="true"><span class="sw"></span><span>音乐</span></button>
+          <button id="btn-sound" class="toggle-switch" type="button" title="音效 (N)" aria-pressed="true"><span class="sw"></span><span>音效</span></button>
+          <button id="btn-fullscreen" class="icon-btn" type="button" title="全屏">⛶</button>
+          <button id="btn-pause" class="icon-btn" type="button" title="暂停 (Esc)">Ⅱ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== 弹窗层 ===================== -->
+    <div id="screens">
+      <!-- 主菜单 -->
+      <section id="screen-menu" class="screen">
+        <div class="panel panel-menu">
+          <div class="brand">
+            <h1 class="brand-title"><span>弹弹</span><span class="accent">解压</span></h1>
+            <p class="brand-sub">BOUNCE &amp; RELAX</p>
+          </div>
+          <p class="tagline">一堵墙，一颗球，把烦恼一颗颗砸碎。</p>
+
+          <div class="mode-list">
+            <button class="mode-card" id="btn-campaign" type="button">
+              <span class="mode-icon icon-campaign" aria-hidden="true">♜</span>
+              <span class="mode-text">
+                <span class="mode-name">闯关模式</span>
+                <span class="mode-desc">10 个精心设计的关卡，难度循序渐进</span>
+              </span>
+              <span class="mode-badge" id="campaign-progress">0/10</span>
+            </button>
+
+            <button class="mode-card" id="btn-challenge" type="button">
+              <span class="mode-icon icon-challenge" aria-hidden="true">∞</span>
+              <span class="mode-text">
+                <span class="mode-name">挑战模式</span>
+                <span class="mode-desc">连续波次：清空自动进入下一波，命不回复，挑战极限</span>
+              </span>
+              <span class="mode-badge" id="challenge-best">最高 0</span>
+            </button>
+
+            <button class="mode-card" id="btn-endless" type="button">
+              <span class="mode-icon icon-endless" aria-hidden="true">♾</span>
+              <span class="mode-text">
+                <span class="mode-name">无尽模式</span>
+                <span class="mode-desc">墙体不断生成，弹珠永不重置，能撑多久？</span>
+              </span>
+              <span class="mode-badge" id="endless-best">最远 0 波</span>
+            </button>
+
+            <button class="mode-card" id="btn-relax" type="button">
+              <span class="mode-icon icon-relax" aria-hidden="true">✿</span>
+              <span class="mode-text">
+                <span class="mode-name">解压模式</span>
+                <span class="mode-desc">把弹珠打进钢壳缺口，进去后无限分裂清场</span>
+              </span>
+              <span class="mode-badge">随意玩</span>
+            </button>
+          </div>
+
+          <div class="menu-row">
+            <button id="btn-levels" class="btn btn-ghost" type="button">关卡选择</button>
+            <button id="btn-menu-music" class="btn btn-ghost toggle" type="button" aria-pressed="true">♫ 音乐</button>
+            <button id="btn-menu-sound" class="btn btn-ghost toggle" type="button" aria-pressed="true">🔊 音效</button>
+          </div>
+
+          <p class="controls-hint">
+            <kbd>鼠标</kbd> / <kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd> 移动墙体　·　
+            <kbd>空格</kbd> 或 <kbd>点击</kbd> 发射　·　<kbd>Esc</kbd> 暂停　·　<kbd>R</kbd> 重开
+          </p>
+          <p class="version">v1.0 · 纯前端 · 无需联网</p>
+        </div>
+      </section>
+
+      <!-- 关卡选择 -->
+      <section id="screen-levels" class="screen" hidden>
+        <div class="panel panel-levels">
+          <h2 class="panel-title">闯关模式 · 关卡选择</h2>
+          <p class="panel-sub">通关后自动解锁下一关</p>
+          <div id="level-grid" class="level-grid"></div>
+          <div class="panel-actions">
+            <button id="btn-levels-back" class="btn btn-ghost" type="button">返回</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 暂停 -->
+      <section id="screen-pause" class="screen dim" hidden>
+        <div class="panel panel-small">
+          <h2 class="panel-title">已暂停</h2>
+          <p class="panel-sub">按 Esc 继续</p>
+          <div class="panel-actions col">
+            <button id="btn-resume" class="btn btn-primary" type="button">继续游戏</button>
+            <button id="btn-restart" class="btn btn-ghost" type="button">重开本关</button>
+            <button id="btn-quit" class="btn btn-ghost" type="button">返回主菜单</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 通关 -->
+      <section id="screen-win" class="screen dim" hidden>
+        <div class="panel panel-small">
+          <div class="win-burst" aria-hidden="true">✦</div>
+          <h2 class="panel-title" id="win-title">通关！</h2>
+          <p class="panel-sub" id="win-sub">干得漂亮</p>
+          <div class="stats" id="win-stats"></div>
+          <div class="panel-actions col">
+            <button id="btn-next" class="btn btn-primary" type="button">下一关</button>
+            <button id="btn-replay-win" class="btn btn-ghost" type="button">重玩本关</button>
+            <button id="btn-menu-win" class="btn btn-ghost" type="button">返回主菜单</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 是否保留弹珠 -->
+      <section id="screen-keep" class="screen dim" hidden>
+        <div class="panel panel-small">
+          <h2 class="panel-title" id="keep-title">清场！</h2>
+          <p class="panel-sub" id="keep-sub">要保留弹珠进入下一关吗？</p>
+          <div class="stats" id="keep-stats"></div>
+          <div class="panel-actions col">
+            <button id="btn-keep-yes" class="btn btn-primary" type="button">保留弹珠继续</button>
+            <button id="btn-keep-no" class="btn btn-ghost" type="button">不保留（重新 1 颗球）</button>
+            <button id="btn-keep-menu" class="btn btn-ghost" type="button">返回主菜单</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 游戏结束 -->
+      <section id="screen-over" class="screen dim" hidden>
+        <div class="panel panel-small">
+          <h2 class="panel-title over-title">游戏结束</h2>
+          <p class="panel-sub" id="over-sub">三条命都用完了</p>
+          <div class="stats" id="over-stats"></div>
+          <div class="panel-actions col">
+            <button id="btn-retry" class="btn btn-primary" type="button">再来一次</button>
+            <button id="btn-menu-over" class="btn btn-ghost" type="button">返回主菜单</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <!-- 手机触屏按钮 -->
+    <div id="touch-controls" class="touch-controls" hidden>
+      <button id="touch-left" class="touch-btn" type="button" aria-label="向左">◀</button>
+      <button id="touch-shoot" class="touch-btn shoot" type="button">发射</button>
+      <button id="touch-right" class="touch-btn" type="button" aria-label="向右">▶</button>
+    </div>
+
+    <div id="mobile-tip" class="mobile-tip" hidden>
+      <span>手机建议横屏 + 全屏</span>
+      <button id="btn-mobile-full" class="btn btn-primary" type="button">进入全屏</button>
+      <button id="btn-mobile-close" class="btn btn-ghost" type="button">先这样玩</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/rules.js?v=20261112g"></script>
+<script src="js/physics.js?v=20261112g"></script>
+<script src="js/levels.js?v=20261112g"></script>
+<script src="js/audio.js?v=20261112g"></script>
+<script src="js/game.js?v=20261112g"></script>
+</body>
+</html>
