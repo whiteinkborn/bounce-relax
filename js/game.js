@@ -732,6 +732,9 @@
     blk.flash = 1;
     blk.wobble = 1;
 
+    /* 解压模式：一旦碰到舱内可破坏方块，穿墙机会就消耗掉，避免之后从里面穿出去 */
+    if (blk.breakable && G.mode === 'relax' && ball.phase) ball.phase = false;
+
     if (!blk.breakable) {
       /* 解压模式：每颗球第一次碰到钢板直接穿过去 */
       if (G.mode === 'relax' && (ball.phase || ball.phaseTimer > 0)) {
